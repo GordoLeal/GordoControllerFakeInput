@@ -1,15 +1,13 @@
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
-using System;
-using System.Reflection.Metadata;
+using System.Media;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.JavaScript;
 
 namespace GordoControllerFakeInput;
 
-
 public partial class GordoControllerFakeInput : Form
 {
+
     // word = ushort
     // Uint32 = dword
 
@@ -54,8 +52,10 @@ public partial class GordoControllerFakeInput : Form
 
     [DllImport("user32.dll")]
     static extern short GetAsyncKeyState(int vKey);
+
     Dictionary<String, int> VirtualKeys = new Dictionary<string, int>()
     {
+        { "NONE",0x0 },
         { "LBUTTON", 0x01 },
         { "RBUTTON", 0x02 },
         { "MBUTTON", 0x04 },
@@ -177,7 +177,6 @@ public partial class GordoControllerFakeInput : Form
         { "MEDIA PLAY", 0xB3 }
     };
 
-    private int selectedKey = -1;
 
     System.Windows.Forms.Timer looptimer = new();
     Nefarius.ViGEm.Client.Targets.IXbox360Controller controller;
@@ -185,25 +184,41 @@ public partial class GordoControllerFakeInput : Form
     private bool[] ControllersConected = new bool[4];
     private byte oldvalue_lefttrigger = 0;
     private byte oldvalue_righttrigger = 0;
+    // Keyboard 99% shortcut
+    private int selectedKey = -1;
+    // Controller Toggle
+    private int toggleSelectedKey = -1;
+    private bool isToggleEnabled = false;
+
+    // Main Entry point
     public GordoControllerFakeInput()
     {
         InitializeComponent();
+        //Default stuff because forms is stupid.
+        comboBox1.SelectedIndex = 0;
+        comboBox_ToggleKey.SelectedIndex = 0;
 
+        // Api setup for ViGEm
         var client = new ViGEmClient();
         controller = client.CreateXbox360Controller();
         controller.Connect();
 
-
+        // Instead of using while(), i am going to use the timer function.
+        // makes sure the main window is not going to be locked and other issues.
         looptimer.Interval = 4;
         looptimer.Tick += TimerLoop;
         looptimer.Start();
     }
+
+    // Get any input from any controller windows is detecting and copy it to the fake controller.
+    // since gta5 can only detect one controller at the time.
     private void WindowsGamepadInputs()
     {
         if (controller == null)
         {
             return;
         }
+
         XINPUT_STATE c;
         for (int i = 0; i < 4; i++)
         {
@@ -211,7 +226,7 @@ public partial class GordoControllerFakeInput : Form
             {// don't test fake controller just to make sure stuff is not going to break
                 continue;
             }
-
+            //ERROR_SUCCESS = 0, anything else is >= 1
             if (XInputGetState(i, out c) == 0)
             {
                 GamepadButtons b = (GamepadButtons)c.Gamepad.wButtons;
@@ -245,12 +260,29 @@ public partial class GordoControllerFakeInput : Form
                 if (oldvalue_righttrigger != c.Gamepad.bRightTrigger)
                 {
                     oldvalue_righttrigger = c.Gamepad.bRightTrigger;
-                    controller.SetSliderValue(Xbox360Slider.RightTrigger, c.Gamepad.bRightTrigger);
+                    if (isToggleEnabled) // if player enabled the toggle 99% trigger option
+                    {
+                        // if player is holding above 99%, just bring back to 99%
+                        if (c.Gamepad.bRightTrigger >= 254)
+                        {
+                            controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
+                        }
+                        else
+                        {
+                            //otherwise just copy the input.
+                            controller.SetSliderValue(Xbox360Slider.RightTrigger, c.Gamepad.bRightTrigger);
+                        }
+                    }
+                    else
+                    {
+                        controller.SetSliderValue(Xbox360Slider.RightTrigger, c.Gamepad.bRightTrigger);
+                    }
                 }
             }
         }
     }
 
+    // Find every controller and test if we have a change in hardware connection
     private bool TestControllerChange()
     {
         bool change = false;
@@ -269,11 +301,15 @@ public partial class GordoControllerFakeInput : Form
         }
         return change;
     }
+
+    // To find the fake controller ID created by the program we need to create a specific situation for it.
+    // just cycle between every controller and find the one that has the left trigger value set to exactly 3.
     private void FindFakeController()
     {
         controller.SetSliderValue(Xbox360Slider.LeftTrigger, 3);
         for (int i = 0; i < 4; i++)
         {
+            // ERROR_SUCCESS = 0, anything else is >= 1
             if (XInputGetState(i, out XINPUT_STATE c) == 0)
             {
                 if (c.Gamepad.bLeftTrigger == 3)
@@ -285,7 +321,12 @@ public partial class GordoControllerFakeInput : Form
         }
         controller.SetSliderValue(Xbox360Slider.LeftTrigger, oldvalue_lefttrigger);
     }
+
+
     GamepadButtons oldflags;
+    // we only want to change inputs that actually did change on the true controller,
+    // otherwise the inputs are going to switch on and off every frame...
+    // creating a few situations where the input is 0 for a frame then back to 1, then back to 0, etc...
     private void FlagExistsSetButtonState(GamepadButtons flags, GamepadButtons which)
     {
         if (flags.HasFlag(which) != oldflags.HasFlag(which))
@@ -294,6 +335,8 @@ public partial class GordoControllerFakeInput : Form
         }
     }
 
+    // Converting internal enum into api enum.
+    // why? making code easy to read later.
     private static Xbox360Button ConvertFlagIntoXboxButton(GamepadButtons c)
     {
         switch (c)
@@ -344,29 +387,66 @@ public partial class GordoControllerFakeInput : Form
                 return Xbox360Button.Up;
         }
     }
+    private bool waitUnpress = false;
+    // the main loop where everything is going to happen
     void TimerLoop(object sender, EventArgs e)
     {
-        if (comboBox1.SelectedItem == null)
-        {
-            return;
-        }
-
+        // check if something changed on the hardwar.
+        // windows updates the controller ID on every input hardware change.
+        // Need to find the fake controller ID
         if (TestControllerChange())
         {
             FindFakeController();
         }
 
+        // Since GTAV can only detect one controller, we are going to be responsable to take any controller input
+        // and send it via the virtual controller.
         WindowsGamepadInputs();
-        bool xPressed = (GetAsyncKeyState(selectedKey) & 0x8000) != 0;
 
-        if (xPressed)
+        // by default, the combo box is empty when you open the program, just to make sure nothing is going to break
+        // or crash.
+        if (comboBox1.SelectedItem != null && selectedKey > 0)
         {
-            controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
+
+            // if the keyboard key is selected, do the fake 99% left trigger press
+            bool xPressed = (GetAsyncKeyState(selectedKey) & 0x8000) != 0;
+            if (xPressed)
+            {
+                controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
+            }
+            else
+            {
+                controller.SetSliderValue(Xbox360Slider.RightTrigger, oldvalue_righttrigger);
+            }
         }
-        else
+
+        if (comboBox_ToggleKey != null && toggleSelectedKey > 0)
         {
-            controller.SetSliderValue(Xbox360Slider.RightTrigger, oldvalue_righttrigger);
+            if ((GetAsyncKeyState(toggleSelectedKey) & 0x8000) != 0)
+            {
+                if (!waitUnpress)
+                {
+                    waitUnpress = true;
+                    if (isToggleEnabled)
+                    {
+                        isToggleEnabled = false;
+                        SystemSounds.Hand.Play();
+                        label_togglestatus.Text = "Limit Controller trigger: Disabled";
+                    }
+                    else
+                    {
+                        SystemSounds.Beep.Play();
+                        isToggleEnabled = true;
+                        label_togglestatus.Text = "Limit Controller trigger: Enabled";
+                    }
+                }
+            }
+            else
+            {
+                waitUnpress = false;
+            }
         }
+
     }
 
     private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -378,6 +458,16 @@ public partial class GordoControllerFakeInput : Form
 
         string selected = comboBox1.GetItemText(comboBox1.SelectedItem);
         selectedKey = VirtualKeys[selected];
-        //bool pressed = (GetAsyncKeyState(selectedKey) & 0x8000) != 0;
+    }
+
+    private void comboBox_toggleKey_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (comboBox_ToggleKey.SelectedItem == null)
+        {
+            return;
+        }
+
+        string selected = comboBox_ToggleKey.GetItemText(comboBox_ToggleKey.SelectedItem);
+        toggleSelectedKey = VirtualKeys[selected];
     }
 }
