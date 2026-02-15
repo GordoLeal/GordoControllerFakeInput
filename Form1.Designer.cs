@@ -30,6 +30,7 @@ partial class GordoControllerFakeInput
     {
         Label label1;
         Label label2;
+        System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(GordoControllerFakeInput));
         comboBox1 = new ComboBox();
         comboBox_ToggleKey = new ComboBox();
         label_togglestatus = new Label();
@@ -90,16 +91,16 @@ partial class GordoControllerFakeInput
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(245, 139);
+        ClientSize = new Size(277, 139);
         Controls.Add(label_togglestatus);
         Controls.Add(label2);
         Controls.Add(comboBox_ToggleKey);
         Controls.Add(label1);
         Controls.Add(comboBox1);
         FormBorderStyle = FormBorderStyle.FixedSingle;
+        Icon = (Icon)resources.GetObject("$this.Icon");
         MaximizeBox = false;
         Name = "GordoControllerFakeInput";
-        ShowIcon = false;
         Text = "Gordo's Fake 99 Input";
         ResumeLayout(false);
         PerformLayout();
