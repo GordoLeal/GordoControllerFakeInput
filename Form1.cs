@@ -470,4 +470,9 @@ public partial class GordoControllerFakeInput : Form
         string selected = comboBox_ToggleKey.GetItemText(comboBox_ToggleKey.SelectedItem);
         toggleSelectedKey = VirtualKeys[selected];
     }
+
+    private void button_unfocus_Click(object sender, EventArgs e)
+    {
+        this.ActiveControl = null;
+    }
 }
