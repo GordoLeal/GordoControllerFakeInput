@@ -34,6 +34,7 @@ partial class GordoControllerFakeInput
         comboBox1 = new ComboBox();
         comboBox_ToggleKey = new ComboBox();
         label_togglestatus = new Label();
+        button_unfocus = new Button();
         label1 = new Label();
         label2 = new Label();
         SuspendLayout();
@@ -52,7 +53,7 @@ partial class GordoControllerFakeInput
         label2.AutoSize = true;
         label2.Location = new Point(12, 67);
         label2.Name = "label2";
-        label2.Size = new Size(143, 15);
+        label2.Size = new Size(144, 15);
         label2.TabIndex = 3;
         label2.Text = "Toggle Key for Controllers";
         // 
@@ -87,11 +88,23 @@ partial class GordoControllerFakeInput
         label_togglestatus.TabIndex = 4;
         label_togglestatus.Text = "Limit Controller trigger: Disabled";
         // 
+        // button_unfocus
+        // 
+        button_unfocus.Font = new Font("Segoe UI Black", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+        button_unfocus.Location = new Point(242, 9);
+        button_unfocus.Name = "button_unfocus";
+        button_unfocus.Size = new Size(23, 23);
+        button_unfocus.TabIndex = 5;
+        button_unfocus.Text = "*";
+        button_unfocus.UseVisualStyleBackColor = true;
+        button_unfocus.Click += button_unfocus_Click;
+        // 
         // GordoControllerFakeInput
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(277, 139);
+        Controls.Add(button_unfocus);
         Controls.Add(label_togglestatus);
         Controls.Add(label2);
         Controls.Add(comboBox_ToggleKey);
@@ -111,4 +124,5 @@ partial class GordoControllerFakeInput
     private ComboBox comboBox1;
     private ComboBox comboBox_ToggleKey;
     private Label label_togglestatus;
+    private Button button_unfocus;
 }
