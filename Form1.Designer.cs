@@ -65,7 +65,9 @@ partial class GordoControllerFakeInput
         comboBox1.Name = "comboBox1";
         comboBox1.Size = new Size(143, 23);
         comboBox1.TabIndex = 0;
+        comboBox1.TabStop = false;
         comboBox1.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
+        comboBox1.KeyDown += comboBox1_KeyDown;
         // 
         // comboBox_ToggleKey
         // 
@@ -76,7 +78,9 @@ partial class GordoControllerFakeInput
         comboBox_ToggleKey.Name = "comboBox_ToggleKey";
         comboBox_ToggleKey.Size = new Size(143, 23);
         comboBox_ToggleKey.TabIndex = 2;
+        comboBox_ToggleKey.TabStop = false;
         comboBox_ToggleKey.SelectedIndexChanged += comboBox_toggleKey_SelectedIndexChanged;
+        comboBox_ToggleKey.KeyDown += comboBox_ToggleKey_KeyDown;
         // 
         // label_togglestatus
         // 

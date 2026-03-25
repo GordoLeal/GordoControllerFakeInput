@@ -470,4 +470,16 @@ public partial class GordoControllerFakeInput : Form
         string selected = comboBox_ToggleKey.GetItemText(comboBox_ToggleKey.SelectedItem);
         toggleSelectedKey = VirtualKeys[selected];
     }
+
+    private void comboBox1_KeyDown(object sender, KeyEventArgs e)
+    {
+        e.SuppressKeyPress = true;
+        e.Handled = true;
+    }
+
+    private void comboBox_ToggleKey_KeyDown(object sender, KeyEventArgs e)
+    {
+        e.SuppressKeyPress = true;
+        e.Handled = true;
+    }
 }
