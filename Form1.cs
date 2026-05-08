@@ -1,8 +1,8 @@
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
+using System.Diagnostics;
 using System.Media;
 using System.Runtime.InteropServices;
-
 namespace GordoControllerFakeInput;
 
 public partial class GordoControllerFakeInput : Form
@@ -52,6 +52,31 @@ public partial class GordoControllerFakeInput : Form
 
     [DllImport("user32.dll")]
     static extern short GetAsyncKeyState(int vKey);
+
+#if TRIGGERANTICHEAT || DEBUG
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetModuleHandle(string lpModuleName);
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    public struct tagBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+#endif
 
     Dictionary<String, int> VirtualKeys = new Dictionary<string, int>()
     {
@@ -188,15 +213,69 @@ public partial class GordoControllerFakeInput : Form
     private int selectedKey = -1;
     // Controller Toggle
     private int toggleSelectedKey = -1;
-    private bool isToggleEnabled = false;
+    private bool isControllerToggleEnabled = false;
+    // Keyboard Toggle
+    private int toggleKeyboardSelectedKey = -1;
+    private bool isKeyboardToggleEnabled = false;
+    private bool isPressingSelectedKey = false;
+    //Controller Toggle sounds
+    private const string pathSoundActivate = @"audio\ON.wav";
+    private const string pathSoundDeactivate = @"audio\OFF.wav";
+    SoundPlayer soundToggleActivate = new SoundPlayer(pathSoundActivate);
+    SoundPlayer soundToggleDeactivate = new SoundPlayer(pathSoundDeactivate);
+    GamepadButtons oldflags;
+
+#if TRIGGERANTICHEAT || DEBUG
+    //might trigger anti cheat if the game has it.
+    private IntPtr hookID = IntPtr.Zero;
+    private readonly LowLevelKeyboardProc keyproc;
+
+    private IntPtr KeyboardEventProc(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && isKeyboardToggleEnabled && selectedKey > 0)
+        {
+            if (wParam == 0x0100 || wParam == 0x0104)
+            {
+                tagBDLLHOOKSTRUCT inpt = Marshal.PtrToStructure<tagBDLLHOOKSTRUCT>(lParam);
+                if (inpt.vkCode == selectedKey && isPressingSelectedKey)
+                {
+                    return 1;
+                }
+            }
+        }
+        return CallNextHookEx(hookID, nCode, wParam, lParam);
+    }
+#endif
 
     // Main Entry point
     public GordoControllerFakeInput()
     {
         InitializeComponent();
+#if TRIGGERANTICHEAT || DEBUG
+        //Hook with keyboard events.
+        keyproc = KeyboardEventProc;
+        hookID = SetWindowsHookEx(0xD, keyproc, GetModuleHandle(Process.GetCurrentProcess().MainModule!.ModuleName), 0);
+
+        //if the person is using the trigger anticheat version, the toggle is going to be enabled by default.
+        //because the person will have access to changing it.
+        isKeyboardToggleEnabled = true;
+#else
+        // if the person is not using the trigger anticheat version, just disable the toggle and hide the options.
+        comboBox_ToggleKeyboard.Enabled = false;
+        checkBox_PlaySoundsKeyboard.Enabled = false;
+        label_IsKeyboardKeyDisabled.Visible = false;
+#endif
+
+        //Loading the sound files.
+        if (File.Exists(pathSoundActivate))
+            soundToggleActivate.Load();
+        if (File.Exists(pathSoundDeactivate))
+            soundToggleDeactivate.Load();
+
         //Default stuff because forms is stupid.
         comboBox1.SelectedIndex = 0;
         comboBox_ToggleKey.SelectedIndex = 0;
+        comboBox_ToggleKeyboard.SelectedIndex = 0;
 
         // Api setup for ViGEm
         var client = new ViGEmClient();
@@ -212,7 +291,7 @@ public partial class GordoControllerFakeInput : Form
 
     // Get any input from any controller windows is detecting and copy it to the fake controller.
     // since gta5 can only detect one controller at the time.
-    private void WindowsGamepadInputs()
+    private void PassWindowsInputsToFakeController()
     {
         if (controller == null)
         {
@@ -260,7 +339,7 @@ public partial class GordoControllerFakeInput : Form
                 if (oldvalue_righttrigger != c.Gamepad.bRightTrigger)
                 {
                     oldvalue_righttrigger = c.Gamepad.bRightTrigger;
-                    if (isToggleEnabled) // if player enabled the toggle 99% trigger option
+                    if (isControllerToggleEnabled) // if player enabled the toggle 99% trigger option
                     {
                         // if player is holding above 99%, just bring back to 99%
                         if (c.Gamepad.bRightTrigger >= 254)
@@ -319,11 +398,9 @@ public partial class GordoControllerFakeInput : Form
                 }
             }
         }
-        controller.SetSliderValue(Xbox360Slider.LeftTrigger, oldvalue_lefttrigger);
+        controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
     }
 
-
-    GamepadButtons oldflags;
     // we only want to change inputs that actually did change on the true controller,
     // otherwise the inputs are going to switch on and off every frame...
     // creating a few situations where the input is 0 for a frame then back to 1, then back to 0, etc...
@@ -387,21 +464,48 @@ public partial class GordoControllerFakeInput : Form
                 return Xbox360Button.Up;
         }
     }
-    private bool waitUnpress = false;
+    private void ResetAllFakeControllerInputs()
+    {
+        controller.SetButtonState(Xbox360Button.A, false);
+        controller.SetButtonState(Xbox360Button.B, false);
+        controller.SetButtonState(Xbox360Button.X, false);
+        controller.SetButtonState(Xbox360Button.Y, false);
+        controller.SetButtonState(Xbox360Button.LeftShoulder, false);
+        controller.SetButtonState(Xbox360Button.RightShoulder, false);
+        controller.SetButtonState(Xbox360Button.LeftThumb, false);
+        controller.SetButtonState(Xbox360Button.RightThumb, false);
+        controller.SetButtonState(Xbox360Button.Start, false);
+        controller.SetButtonState(Xbox360Button.Back, false);
+        controller.SetButtonState(Xbox360Button.Up, false);
+        controller.SetButtonState(Xbox360Button.Down, false);
+        controller.SetButtonState(Xbox360Button.Left, false);
+        controller.SetButtonState(Xbox360Button.Right, false);
+        controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
+        controller.SetSliderValue(Xbox360Slider.RightTrigger, 0);
+        controller.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
+        controller.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
+        controller.SetAxisValue(Xbox360Axis.RightThumbX, 0);
+        controller.SetAxisValue(Xbox360Axis.RightThumbY, 0);
+    }
+
+    private bool waitUnpressControllerToggle = false;
+    private bool waitUnpressKeyboardToggle = false;
+
     // the main loop where everything is going to happen
     void TimerLoop(object sender, EventArgs e)
     {
-        // check if something changed on the hardwar.
+        // check if something changed on the hardware.
         // windows updates the controller ID on every input hardware change.
         // Need to find the fake controller ID
         if (TestControllerChange())
         {
             FindFakeController();
+            ResetAllFakeControllerInputs();
         }
 
         // Since GTAV can only detect one controller, we are going to be responsable to take any controller input
         // and send it via the virtual controller.
-        WindowsGamepadInputs();
+        PassWindowsInputsToFakeController();
 
         // by default, the combo box is empty when you open the program, just to make sure nothing is going to break
         // or crash.
@@ -409,8 +513,8 @@ public partial class GordoControllerFakeInput : Form
         {
 
             // if the keyboard key is selected, do the fake 99% left trigger press
-            bool xPressed = (GetAsyncKeyState(selectedKey) & 0x8000) != 0;
-            if (xPressed)
+            isPressingSelectedKey = (GetAsyncKeyState(selectedKey) & 0x8000) != 0;
+            if (isPressingSelectedKey)
             {
                 controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
             }
@@ -420,34 +524,114 @@ public partial class GordoControllerFakeInput : Form
             }
         }
 
+        // Controller toggle.
         if (comboBox_ToggleKey != null && toggleSelectedKey > 0)
         {
             if ((GetAsyncKeyState(toggleSelectedKey) & 0x8000) != 0)
             {
-                if (!waitUnpress)
+                // We only need to do this function once. do everything bellow and wait for the key to be released.
+                if (!waitUnpressControllerToggle)
                 {
-                    waitUnpress = true;
-                    if (isToggleEnabled)
+                    waitUnpressControllerToggle = true;
+
+                    if (isControllerToggleEnabled)
                     {
-                        isToggleEnabled = false;
-                        SystemSounds.Hand.Play();
-                        label_togglestatus.Text = "Limit Controller trigger: Disabled";
+
+                        isControllerToggleEnabled = false;
+                        // Play sound if file is loaded.
+                        if (soundToggleDeactivate.IsLoadCompleted && checkBox_PlaySoundsController.Checked)
+                            try
+                            {
+                                soundToggleDeactivate.Play();
+                            }
+                            catch
+                            {
+                                MessageBox.Show("Something happened while trying to play the deactivate (off.wav) sound. maybe is not a valid .wav file");
+                            }
+
+                        label_togglestatus.Text = "Is Controller Right Trigger limited to 99%: NO";
                     }
                     else
                     {
-                        SystemSounds.Beep.Play();
-                        isToggleEnabled = true;
-                        label_togglestatus.Text = "Limit Controller trigger: Enabled";
+                        // play sound if file is loaded.
+                        if (soundToggleActivate.IsLoadCompleted && checkBox_PlaySoundsController.Checked)
+                            try
+                            {
+                                soundToggleActivate.Play();
+                            }
+                            catch
+                            {
+                                MessageBox.Show("Something happened while trying to play the activate (on.wav) sound. maybe is not a valid .wav file");
+                            }
+                        isControllerToggleEnabled = true;
+                        label_togglestatus.Text = "Is Controller Right Trigger limited to 99%: YES";
                     }
                 }
             }
             else
             {
-                waitUnpress = false;
+                //Key is not pressed, reset.
+                waitUnpressControllerToggle = false;
+            }
+        }
+
+        if (comboBox_ToggleKeyboard != null && toggleKeyboardSelectedKey > 0)
+        {
+            //Keyboard Toggle.
+            if ((GetAsyncKeyState(toggleKeyboardSelectedKey) & 1) != 0)
+            {
+                // We only need to do this function once. do everything bellow and wait for the key to be released.
+                if (!waitUnpressKeyboardToggle)
+                {
+                    waitUnpressKeyboardToggle = true;
+
+                    if (isKeyboardToggleEnabled)
+                    {
+
+                        isKeyboardToggleEnabled = false;
+                        // Play sound if file is loaded.
+                        if (soundToggleDeactivate.IsLoadCompleted && checkBox_PlaySoundsKeyboard.Checked)
+                        {
+                            try
+                            {
+                                soundToggleDeactivate.Play();
+                            }
+                            catch
+                            {
+                                MessageBox.Show("Something happened while trying to play the deactivate (off.wav) sound. maybe is not a valid .wav file?");
+                            }
+                            label_IsKeyboardKeyDisabled.Text = "Is the selected keyboard key being blocked: NO";
+                        }
+                    }
+                    else
+                    {
+                        isKeyboardToggleEnabled = true;
+                        // play sound if file is loaded.
+                        if (soundToggleActivate.IsLoadCompleted && checkBox_PlaySoundsKeyboard.Checked)
+                        {
+                            try
+                            {
+                                soundToggleActivate.Play();
+                            }
+                            catch
+                            {
+                                MessageBox.Show("Something happened while trying to play the activate (on.wav) sound. maybe is not a valid .wav file?");
+                            }
+                            label_IsKeyboardKeyDisabled.Text = "Is the selected keyboard key being blocked: YES";
+                        }
+                    }
+                }
+            }
+            else
+            {
+                //Key is not pressed, reset.
+                waitUnpressKeyboardToggle = false;
             }
         }
 
     }
+
+    // Event Functions
 
     private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
     {
@@ -473,13 +657,79 @@ public partial class GordoControllerFakeInput : Form
 
     private void comboBox1_KeyDown(object sender, KeyEventArgs e)
     {
+        //Need to surpress the key press to avoid issues of the dropbox changing selections.
         e.SuppressKeyPress = true;
         e.Handled = true;
     }
 
     private void comboBox_ToggleKey_KeyDown(object sender, KeyEventArgs e)
     {
+        //Need to surpress the key press to avoid issues of the dropbox changing selections.
         e.SuppressKeyPress = true;
         e.Handled = true;
+    }
+    private void comboBox_ToggleKeyboard_KeyDown(object sender, KeyEventArgs e)
+    {
+        //Need to surpress the key press to avoid issues of the dropbox changing selections.
+        e.SuppressKeyPress = true;
+        e.Handled = true;
+    }
+
+    private void comboBox_ToggleKeyboard_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (comboBox_ToggleKeyboard.SelectedItem == null)
+        {
+            return;
+        }
+
+        string selected = comboBox_ToggleKeyboard.GetItemText(comboBox_ToggleKeyboard.SelectedItem);
+        if (selected == "LBUTTON" || selected == "RBUTTON")
+        {
+            MessageBox.Show("The toggle keyboard key can not be this button, don't try to lock yourself from your computer.", "Anti dumb people warning");
+            comboBox_ToggleKeyboard.SelectedIndex = 0;
+            return;
+        }
+        toggleKeyboardSelectedKey = VirtualKeys[selected];
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+#if TRIGGERANTICHEAT || DEBUG
+        UnhookWindowsHookEx(hookID);
+#endif
+        controller.Disconnect();
+        base.OnFormClosing(e);
+    }
+
+    private void button_helpKeyboard_Click(object sender, EventArgs e)
+    {
+        MessageBox.Show("Select a button from the dropdown.\r\nPressing the selected button will simulate a 99% pressed right controller trigger.\r\n\r\nIs not complicated.", "Help");
+    }
+
+    private void button_helpToggleKeyboard_Click(object sender, EventArgs e)
+    {
+#if TRIGGERANTICHEAT || DEBUG
+        MessageBox.Show("You might want to use a key like *W* for the Keyboard Acceleration key, but doing so will cause issues because you will be sending two inputs to the game (W key from your keyboard and the Right Controller Trigger from the program)."
+            +
+            "\n\n\n" +
+            "You can select a key from the dropdown menu to toggle between the 99% trigger and your normal keyboard key." +
+            "\n\n\n" +
+            "The program is going to block the Acceleration key from working when the toggle is active, allowing you to maybe use a key like *W* as 99% acceleration button without having issues of extra inputs." +
+            "\n\n\n" +
+            "The text bellow will say YES if the selected acceleration key is being blocked from working at the moment"
+            , "Help");
+#else
+       MessageBox.Show("This option is only available on the Trigger Anti Cheat version of the program, because it needs to capture, interrupt and block the keyboard key input to work properly. if you are interested in this feature, consider downloading the Trigger Anti Cheat version.", "Help"); 
+#endif
+    }
+
+    private void button_HelpController_Click(object sender, EventArgs e)
+    {
+        MessageBox.Show("Select a button from the dropdown.\r\nPressing the selected button will toggle between normal controller Right Trigger behavior and 99% pressed Right Trigger."+
+            "\n\n"+
+            "For the program to work with controllers, windows need to set this program as player 1 / controller 0."+
+            "\n\n"+
+            "To do this, unplug any physical controller connected to your computer and restart the program. Once that is done, you can plug everything back again."
+            , "Help");
     }
 }
