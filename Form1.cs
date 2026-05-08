@@ -76,6 +76,55 @@ public partial class GordoControllerFakeInput : Form
         public uint time;
         public IntPtr dwExtraInfo;
     }
+
+    [DllImport("user32.dll")]
+    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint type;
+        public INPUTUNION union;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct INPUTUNION
+    {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+        [FieldOffset(0)] public KEYBDINPUT ki;
+        [FieldOffset(0)] public HARWAREINPUT hi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+    //We don't need mouse or Hardware input but if not included the offset is going to be incorrect and result in issues on the sendinput function.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HARWAREINPUT
+    {
+        uint uMsg;
+        ushort wParamL;
+        ushort wParamR;
+    }
+    
+    [DllImport("user32.dll")]
+    static extern uint MapVirtualKey(uint uCode, uint uMapType);
 #endif
 
     Dictionary<String, int> VirtualKeys = new Dictionary<string, int>()
@@ -225,29 +274,67 @@ public partial class GordoControllerFakeInput : Form
     SoundPlayer soundToggleDeactivate = new SoundPlayer(pathSoundDeactivate);
     GamepadButtons oldflags;
 
+    private bool isUsingTriggerAntiCheatVersion = false;
+
 #if TRIGGERANTICHEAT || DEBUG
     //might trigger anti cheat if the game has it.
     private IntPtr hookID = IntPtr.Zero;
     private readonly LowLevelKeyboardProc keyproc;
+    private static IntPtr codeToIgnoreSelfSendInput = new IntPtr(0x696969);
 
     private IntPtr KeyboardEventProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && isKeyboardToggleEnabled && selectedKey > 0)
+        if (nCode >= 0 && selectedKey > 0)
         {
-            if (wParam == 0x0100 || wParam == 0x0104)
+            // WM_KEYDOWN= 0x0100
+            // wm_keyup = 0x0101
+            if (wParam == 0x0100 || wParam == 0x0101)
             {
                 tagBDLLHOOKSTRUCT inpt = Marshal.PtrToStructure<tagBDLLHOOKSTRUCT>(lParam);
-                if (inpt.vkCode == selectedKey && isPressingSelectedKey)
+
+                // we are sending SendInput WM_Keyup if the person blocks the selected key while holding it.
+                // this might fix situations where the key would be stuck.
+                if (inpt.dwExtraInfo == codeToIgnoreSelfSendInput)
                 {
-                    return 1;
+                    return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+                }
+
+                if (inpt.vkCode == selectedKey)
+                {
+                    isPressingSelectedKey = (wParam == 0x0100);
+                }
+
+                if (isKeyboardToggleEnabled && inpt.vkCode == selectedKey && (wParam == 0x0100))
+                {
+                    return new IntPtr(1);
                 }
             }
         }
-        return CallNextHookEx(hookID, nCode, wParam, lParam);
+        return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+    }
+
+    private void SendKeyUp(int vkCode)
+    {
+        INPUT[] inputs = [ new INPUT
+        {
+        type = 1, // INPUT_KEYBOARD
+        union = new INPUTUNION
+        {
+            ki = new KEYBDINPUT
+            {
+                wVk = (ushort)vkCode,
+                wScan = (ushort)MapVirtualKey((uint)vkCode,0),
+                dwFlags = (uint)0x0002, // KEYEVENTF_KEYUP
+                dwExtraInfo = codeToIgnoreSelfSendInput
+            }
+        }
+    }];
+
+        SendInput((uint)1, inputs, Marshal.SizeOf(typeof(INPUT)));
     }
 #endif
 
-    // Main Entry point
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=- Main Entry point -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
     public GordoControllerFakeInput()
     {
         InitializeComponent();
@@ -259,6 +346,7 @@ public partial class GordoControllerFakeInput : Form
         //if the person is using the trigger anticheat version, the toggle is going to be enabled by default.
         //because the person will have access to changing it.
         isKeyboardToggleEnabled = true;
+        isUsingTriggerAntiCheatVersion = true;
 #else
         // if the person is not using the trigger anticheat version, just disable the toggle and hide the options.
         comboBox_ToggleKeyboard.Enabled = false;
@@ -490,7 +578,7 @@ public partial class GordoControllerFakeInput : Form
 
     private bool waitUnpressControllerToggle = false;
     private bool waitUnpressKeyboardToggle = false;
-
+    private bool waitUnpressSelectedKey = false;
     // the main loop where everything is going to happen
     void TimerLoop(object sender, EventArgs e)
     {
@@ -513,14 +601,23 @@ public partial class GordoControllerFakeInput : Form
         {
 
             // if the keyboard key is selected, do the fake 99% left trigger press
-            isPressingSelectedKey = (GetAsyncKeyState(selectedKey) & 0x8000) != 0;
-            if (isPressingSelectedKey)
+            if (isKeyboardToggleEnabled)
             {
-                controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
-            }
-            else
-            {
-                controller.SetSliderValue(Xbox360Slider.RightTrigger, oldvalue_righttrigger);
+
+                if (isPressingSelectedKey)
+                {
+                    if (!waitUnpressSelectedKey)
+                    {
+                        waitUnpressSelectedKey = true;
+                        controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
+                    }
+
+                }
+                else
+                {
+                    waitUnpressSelectedKey = false;
+                    controller.SetSliderValue(Xbox360Slider.RightTrigger, oldvalue_righttrigger);
+                }
             }
         }
 
@@ -566,6 +663,7 @@ public partial class GordoControllerFakeInput : Form
                         isControllerToggleEnabled = true;
                         label_togglestatus.Text = "Is Controller Right Trigger limited to 99%: YES";
                     }
+                    ResetAllFakeControllerInputs();
                 }
             }
             else
@@ -589,6 +687,7 @@ public partial class GordoControllerFakeInput : Form
                     {
 
                         isKeyboardToggleEnabled = false;
+
                         // Play sound if file is loaded.
                         if (soundToggleDeactivate.IsLoadCompleted && checkBox_PlaySoundsKeyboard.Checked)
                         {
@@ -602,10 +701,18 @@ public partial class GordoControllerFakeInput : Form
                             }
                             label_IsKeyboardKeyDisabled.Text = "Is the selected keyboard key being blocked: NO";
                         }
+
                     }
                     else
                     {
                         isKeyboardToggleEnabled = true;
+
+                        if ((GetAsyncKeyState(selectedKey) & 1) > 0)
+                        {
+                            isPressingSelectedKey = false;
+                            SendKeyUp(selectedKey);
+                        }
+
                         // play sound if file is loaded.
                         if (soundToggleActivate.IsLoadCompleted && checkBox_PlaySoundsKeyboard.Checked)
                         {
@@ -620,6 +727,8 @@ public partial class GordoControllerFakeInput : Form
                             label_IsKeyboardKeyDisabled.Text = "Is the selected keyboard key being blocked: YES";
                         }
                     }
+                    ResetAllFakeControllerInputs();
+                    isPressingSelectedKey = false;
                 }
             }
             else
@@ -709,14 +818,12 @@ public partial class GordoControllerFakeInput : Form
     private void button_helpToggleKeyboard_Click(object sender, EventArgs e)
     {
 #if TRIGGERANTICHEAT || DEBUG
-        MessageBox.Show("You might want to use a key like *W* for the Keyboard Acceleration key, but doing so will cause issues because you will be sending two inputs to the game (W key from your keyboard and the Right Controller Trigger from the program)."
-            +
-            "\n\n\n" +
+        MessageBox.Show(
             "You can select a key from the dropdown menu to toggle between the 99% trigger and your normal keyboard key." +
             "\n\n\n" +
-            "The program is going to block the Acceleration key from working when the toggle is active, allowing you to maybe use a key like *W* as 99% acceleration button without having issues of extra inputs." +
+            "The program is going to block the physical key from working when the toggle is active, allowing you to maybe use a key like *W* as 99% acceleration button." +
             "\n\n\n" +
-            "The text bellow will say YES if the selected acceleration key is being blocked from working at the moment"
+            "The text bellow will say YES if the selected physical key is being overwritten by the 99% acceleration"
             , "Help");
 #else
        MessageBox.Show("This option is only available on the Trigger Anti Cheat version of the program, because it needs to capture, interrupt and block the keyboard key input to work properly. if you are interested in this feature, consider downloading the Trigger Anti Cheat version.", "Help"); 
@@ -725,10 +832,10 @@ public partial class GordoControllerFakeInput : Form
 
     private void button_HelpController_Click(object sender, EventArgs e)
     {
-        MessageBox.Show("Select a button from the dropdown.\r\nPressing the selected button will toggle between normal controller Right Trigger behavior and 99% pressed Right Trigger."+
-            "\n\n"+
-            "For the program to work with controllers, windows need to set this program as player 1 / controller 0."+
-            "\n\n"+
+        MessageBox.Show("Select a button from the dropdown.\r\nPressing the selected button will toggle between normal controller Right Trigger behavior and 99% pressed Right Trigger." +
+            "\n\n" +
+            "For the program to work with controllers, windows need to set this program as player 1 / controller 0." +
+            "\n\n" +
             "To do this, unplug any physical controller connected to your computer and restart the program. Once that is done, you can plug everything back again."
             , "Help");
     }

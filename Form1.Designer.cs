@@ -36,6 +36,7 @@ partial class GordoControllerFakeInput
         checkBox_PlaySoundsController = new CheckBox();
         label_togglestatus = new Label();
         groupBox2 = new GroupBox();
+        button_HelpController = new Button();
         comboBox_ToggleKeyboard = new ComboBox();
         comboBox1 = new ComboBox();
         checkBox_PlaySoundsKeyboard = new CheckBox();
@@ -43,7 +44,6 @@ partial class GordoControllerFakeInput
         groupBox1 = new GroupBox();
         button_helpToggleKeyboard = new Button();
         button_helpKeyboard = new Button();
-        button_HelpController = new Button();
         label2 = new Label();
         label3 = new Label();
         label1 = new Label();
@@ -65,9 +65,9 @@ partial class GordoControllerFakeInput
         label3.AutoSize = true;
         label3.Location = new Point(12, 102);
         label3.Name = "label3";
-        label3.Size = new Size(221, 15);
+        label3.Size = new Size(279, 15);
         label3.TabIndex = 8;
-        label3.Text = "Key to Toggle key overwrite on Keyboard";
+        label3.Text = "Toggle to block 99% Acceleration Key from working";
         // 
         // label1
         // 
@@ -125,6 +125,16 @@ partial class GordoControllerFakeInput
         groupBox2.TabIndex = 11;
         groupBox2.TabStop = false;
         groupBox2.Text = "For Controllers";
+        // 
+        // button_HelpController
+        // 
+        button_HelpController.Location = new Point(270, 48);
+        button_HelpController.Name = "button_HelpController";
+        button_HelpController.Size = new Size(26, 23);
+        button_HelpController.TabIndex = 6;
+        button_HelpController.Text = "?";
+        button_HelpController.UseVisualStyleBackColor = true;
+        button_HelpController.Click += button_HelpController_Click;
         // 
         // comboBox_ToggleKeyboard
         // 
@@ -209,16 +219,6 @@ partial class GordoControllerFakeInput
         button_helpKeyboard.Text = "?";
         button_helpKeyboard.UseVisualStyleBackColor = true;
         button_helpKeyboard.Click += button_helpKeyboard_Click;
-        // 
-        // button_HelpController
-        // 
-        button_HelpController.Location = new Point(270, 48);
-        button_HelpController.Name = "button_HelpController";
-        button_HelpController.Size = new Size(26, 23);
-        button_HelpController.TabIndex = 6;
-        button_HelpController.Text = "?";
-        button_HelpController.UseVisualStyleBackColor = true;
-        button_HelpController.Click += button_HelpController_Click;
         // 
         // GordoControllerFakeInput
         // 
