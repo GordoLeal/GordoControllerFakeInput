@@ -603,8 +603,24 @@ public partial class GordoControllerFakeInput : Form
             // if the keyboard key is selected, do the fake 99% left trigger press
             if (isKeyboardToggleEnabled)
             {
-
                 if (isPressingSelectedKey)
+                {
+                    if (!waitUnpressSelectedKey)
+                    {
+                        waitUnpressSelectedKey = true;
+                        controller.SetSliderValue(Xbox360Slider.RightTrigger, 254);
+                    }
+
+                }
+                else
+                {
+                    waitUnpressSelectedKey = false;
+                    controller.SetSliderValue(Xbox360Slider.RightTrigger, oldvalue_righttrigger);
+                }
+            }
+            else if (!isUsingTriggerAntiCheatVersion)
+            {
+                if ((GetAsyncKeyState(selectedKey) & 0x8000 )!= 0)
                 {
                     if (!waitUnpressSelectedKey)
                     {
@@ -710,7 +726,9 @@ public partial class GordoControllerFakeInput : Form
                         if ((GetAsyncKeyState(selectedKey) & 1) > 0)
                         {
                             isPressingSelectedKey = false;
+#if TRIGGERANTICHEAT || DEBUG
                             SendKeyUp(selectedKey);
+#endif
                         }
 
                         // play sound if file is loaded.
@@ -826,7 +844,10 @@ public partial class GordoControllerFakeInput : Form
             "The text bellow will say YES if the selected physical key is being overwritten by the 99% acceleration"
             , "Help");
 #else
-       MessageBox.Show("This option is only available on the Trigger Anti Cheat version of the program, because it needs to capture, interrupt and block the keyboard key input to work properly. if you are interested in this feature, consider downloading the Trigger Anti Cheat version.", "Help"); 
+       MessageBox.Show("This option is only available on the Trigger Anti Cheat version of the program, because it needs to capture, interrupt and block the keyboard key input to work properly. Which might trigger some antivirus or anticheats."+
+           "\n\n"+
+           " if you are interested in this feature, consider downloading the Trigger Anti Cheat version.",
+           "Help"); 
 #endif
     }
 
