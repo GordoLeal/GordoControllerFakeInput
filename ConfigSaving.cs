@@ -10,7 +10,7 @@ namespace GordoControllerFakeInput
         // In case i need to make changes to the config file in the future.
         // this can be used to check if the loaded config file is compatible with the current version of the program.
         // if is necessary, code to adapt old config files to the new format can be added in the future.
-        public const uint SAVEFILE_VERSION = 1;
+        public int SAVEFILE_VERSION { get; set; } = 1;
         public int AccelerationKey_index { get; set; } = 0;
         public int KeyboardToggleKey_index { get; set; } = 0;
         public bool PlayerSound_KeyToggle { get; set; } = true;
