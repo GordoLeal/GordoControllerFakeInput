@@ -7,10 +7,6 @@ namespace GordoControllerFakeInput;
 
 public partial class GordoControllerFakeInput : Form
 {
-
-    // word = ushort
-    // Uint32 = dword
-
     [Flags]
     public enum GamepadButtons
     {
@@ -122,7 +118,7 @@ public partial class GordoControllerFakeInput : Form
         ushort wParamL;
         ushort wParamR;
     }
-    
+
     [DllImport("user32.dll")]
     static extern uint MapVirtualKey(uint uCode, uint uMapType);
 #endif
@@ -251,6 +247,7 @@ public partial class GordoControllerFakeInput : Form
         { "MEDIA PLAY", 0xB3 }
     };
 
+    //General Vars.
 
     System.Windows.Forms.Timer looptimer = new();
     Nefarius.ViGEm.Client.Targets.IXbox360Controller controller;
@@ -273,7 +270,10 @@ public partial class GordoControllerFakeInput : Form
     SoundPlayer soundToggleActivate = new SoundPlayer(pathSoundActivate);
     SoundPlayer soundToggleDeactivate = new SoundPlayer(pathSoundDeactivate);
     GamepadButtons oldflags;
-
+    // Config File Saving
+    Config _config = new Config();
+    private bool IsFirstLoad = true;
+    //Anti Cheat Build
     private bool isUsingTriggerAntiCheatVersion = false;
 
 #if TRIGGERANTICHEAT || DEBUG
@@ -333,11 +333,35 @@ public partial class GordoControllerFakeInput : Form
         SendInput((uint)1, inputs, Marshal.SizeOf(typeof(INPUT)));
     }
 #endif
+    private void SaveConfig()
+    {
+        if (!IsFirstLoad)
+        {
+            ConfigFileHandler.Save(_config, ConfigFileHandler.CONFIG_FOLDER_PATH, ConfigFileHandler.CONFIG_FILENAME);
+        }
+    }
+    private void LoadConfig()
+    {
+        _config = ConfigFileHandler.GetConfigFile(ConfigFileHandler.CONFIG_FOLDER_PATH, ConfigFileHandler.CONFIG_FILENAME);
+        comboBox1.SelectedIndex = _config.AccelerationKey_index;
+        comboBox_ToggleKey.SelectedIndex = _config.ControllerToggleKey_index;
+        comboBox_ToggleKeyboard.SelectedIndex = _config.KeyboardToggleKey_index;
+        checkBox_PlaySoundsController.Checked = _config.PlayerSound_ControllerToggle;
+        checkBox_PlaySoundsKeyboard.Checked = _config.PlayerSound_KeyToggle;
+    }
 
     // =-=-=-=-=-=-=-=-=-=-=-=-=-=- Main Entry point -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
     public GordoControllerFakeInput()
     {
         InitializeComponent();
+        //Default stuff because forms is stupid.
+        comboBox1.SelectedIndex = 0;
+        comboBox_ToggleKey.SelectedIndex = 0;
+        comboBox_ToggleKeyboard.SelectedIndex = 0;
+
+        LoadConfig();
+        IsFirstLoad = false;
+
 #if TRIGGERANTICHEAT || DEBUG
         //Hook with keyboard events.
         keyproc = KeyboardEventProc;
@@ -360,11 +384,6 @@ public partial class GordoControllerFakeInput : Form
         if (File.Exists(pathSoundDeactivate))
             soundToggleDeactivate.Load();
 
-        //Default stuff because forms is stupid.
-        comboBox1.SelectedIndex = 0;
-        comboBox_ToggleKey.SelectedIndex = 0;
-        comboBox_ToggleKeyboard.SelectedIndex = 0;
-
         // Api setup for ViGEm
         var client = new ViGEmClient();
         controller = client.CreateXbox360Controller();
@@ -373,7 +392,7 @@ public partial class GordoControllerFakeInput : Form
         // Instead of using while(), i am going to use the timer function.
         // makes sure the main window is not going to be locked and other issues.
         looptimer.Interval = 4;
-        looptimer.Tick += TimerLoop;
+        looptimer.Tick += TimerLoop!;
         looptimer.Start();
     }
 
@@ -620,7 +639,7 @@ public partial class GordoControllerFakeInput : Form
             }
             else if (!isUsingTriggerAntiCheatVersion)
             {
-                if ((GetAsyncKeyState(selectedKey) & 0x8000 )!= 0)
+                if ((GetAsyncKeyState(selectedKey) & 0x8000) != 0)
                 {
                     if (!waitUnpressSelectedKey)
                     {
@@ -715,7 +734,7 @@ public partial class GordoControllerFakeInput : Form
                             {
                                 MessageBox.Show("Something happened while trying to play the deactivate (off.wav) sound. maybe is not a valid .wav file?");
                             }
-                            label_IsKeyboardKeyDisabled.Text = "Is the selected keyboard key being blocked: NO";
+                            label_IsKeyboardKeyDisabled.Text = "Is Keyboard key being overwrite by the 99% key: NO";
                         }
 
                     }
@@ -742,7 +761,7 @@ public partial class GordoControllerFakeInput : Form
                             {
                                 MessageBox.Show("Something happened while trying to play the activate (on.wav) sound. maybe is not a valid .wav file?");
                             }
-                            label_IsKeyboardKeyDisabled.Text = "Is the selected keyboard key being blocked: YES";
+                            label_IsKeyboardKeyDisabled.Text = "Is Keyboard key being overwrite by the 99% key: YES";
                         }
                     }
                     ResetAllFakeControllerInputs();
@@ -767,8 +786,10 @@ public partial class GordoControllerFakeInput : Form
             return;
         }
 
-        string selected = comboBox1.GetItemText(comboBox1.SelectedItem);
+        string selected = comboBox1.GetItemText(comboBox1.SelectedItem)!;
         selectedKey = VirtualKeys[selected];
+        _config.AccelerationKey_index = comboBox1.SelectedIndex;
+        SaveConfig();
     }
 
     private void comboBox_toggleKey_SelectedIndexChanged(object sender, EventArgs e)
@@ -778,8 +799,16 @@ public partial class GordoControllerFakeInput : Form
             return;
         }
 
-        string selected = comboBox_ToggleKey.GetItemText(comboBox_ToggleKey.SelectedItem);
+        string selected = comboBox_ToggleKey.GetItemText(comboBox_ToggleKey.SelectedItem)!;
+        if (selected == "LBUTTON" || selected == "RBUTTON")
+        {
+            MessageBox.Show("The toggle keyboard key can not be this button, don't try to lock yourself from your computer.", "Anti dumb people warning");
+            comboBox_ToggleKeyboard.SelectedIndex = 0;
+            return;
+        }
         toggleSelectedKey = VirtualKeys[selected];
+        _config.ControllerToggleKey_index = comboBox_ToggleKey.SelectedIndex;
+        SaveConfig();
     }
 
     private void comboBox1_KeyDown(object sender, KeyEventArgs e)
@@ -800,6 +829,7 @@ public partial class GordoControllerFakeInput : Form
         //Need to surpress the key press to avoid issues of the dropbox changing selections.
         e.SuppressKeyPress = true;
         e.Handled = true;
+
     }
 
     private void comboBox_ToggleKeyboard_SelectedIndexChanged(object sender, EventArgs e)
@@ -809,7 +839,7 @@ public partial class GordoControllerFakeInput : Form
             return;
         }
 
-        string selected = comboBox_ToggleKeyboard.GetItemText(comboBox_ToggleKeyboard.SelectedItem);
+        string selected = comboBox_ToggleKeyboard.GetItemText(comboBox_ToggleKeyboard.SelectedItem)!;
         if (selected == "LBUTTON" || selected == "RBUTTON")
         {
             MessageBox.Show("The toggle keyboard key can not be this button, don't try to lock yourself from your computer.", "Anti dumb people warning");
@@ -817,6 +847,8 @@ public partial class GordoControllerFakeInput : Form
             return;
         }
         toggleKeyboardSelectedKey = VirtualKeys[selected];
+        _config.KeyboardToggleKey_index = comboBox_ToggleKeyboard.SelectedIndex;
+        SaveConfig();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -844,9 +876,9 @@ public partial class GordoControllerFakeInput : Form
             "The text bellow will say YES if the selected physical key is being overwritten by the 99% acceleration"
             , "Help");
 #else
-       MessageBox.Show("This option is only available on the Trigger Anti Cheat version of the program, because it needs to capture, interrupt and block the keyboard key input to work properly. Which might trigger some antivirus or anticheats."+
+       MessageBox.Show("This option is only available on the Full version of the program, because it needs to capture, interrupt and block the keyboard key input to work properly. Which might trigger some antivirus or anticheats."+
            "\n\n"+
-           " if you are interested in this feature, consider downloading the Trigger Anti Cheat version.",
+           " if you are interested in this feature, consider downloading the Full version.",
            "Help"); 
 #endif
     }
@@ -859,5 +891,17 @@ public partial class GordoControllerFakeInput : Form
             "\n\n" +
             "To do this, unplug any physical controller connected to your computer and restart the program. Once that is done, you can plug everything back again."
             , "Help");
+    }
+
+    private void checkBox_PlaySoundsKeyboard_CheckedChanged(object sender, EventArgs e)
+    {
+        _config.PlayerSound_KeyToggle = checkBox_PlaySoundsKeyboard.Checked;
+        SaveConfig();
+    }
+
+    private void checkBox_PlaySoundsController_CheckedChanged(object sender, EventArgs e)
+    {
+        _config.PlayerSound_ControllerToggle = checkBox_PlaySoundsController.Checked;
+        SaveConfig();
     }
 }

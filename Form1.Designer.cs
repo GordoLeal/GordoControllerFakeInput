@@ -63,7 +63,7 @@ partial class GordoControllerFakeInput
         // label3
         // 
         label3.AutoSize = true;
-        label3.Location = new Point(12, 102);
+        label3.Location = new Point(12, 103);
         label3.Name = "label3";
         label3.Size = new Size(279, 15);
         label3.TabIndex = 8;
@@ -102,6 +102,7 @@ partial class GordoControllerFakeInput
         checkBox_PlaySoundsController.TabIndex = 5;
         checkBox_PlaySoundsController.Text = "Play Sounds";
         checkBox_PlaySoundsController.UseVisualStyleBackColor = true;
+        checkBox_PlaySoundsController.CheckedChanged += checkBox_PlaySoundsController_CheckedChanged;
         // 
         // label_togglestatus
         // 
@@ -119,7 +120,7 @@ partial class GordoControllerFakeInput
         groupBox2.Controls.Add(label2);
         groupBox2.Controls.Add(label_togglestatus);
         groupBox2.Controls.Add(comboBox_ToggleKey);
-        groupBox2.Location = new Point(379, 11);
+        groupBox2.Location = new Point(353, 11);
         groupBox2.Name = "groupBox2";
         groupBox2.Size = new Size(310, 119);
         groupBox2.TabIndex = 11;
@@ -141,7 +142,7 @@ partial class GordoControllerFakeInput
         comboBox_ToggleKeyboard.DropDownStyle = ComboBoxStyle.DropDownList;
         comboBox_ToggleKeyboard.FormattingEnabled = true;
         comboBox_ToggleKeyboard.Items.AddRange(new object[] { "NONE", "LBUTTON", "RBUTTON", "MBUTTON", "XBUTTON1", "XBUTTON2", "BACKSPACE", "TAB", "ENTER", "SHIFT", "CTRL", "ALT", "PAUSE", "CAPS LOCK", "ESC", "SPACE", "PAGE UP", "PAGE DOWN", "END", "HOME", "LEFT", "UP", "RIGHT", "DOWN", "PRINT SCREEN", "INSERT", "DELETE", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "LEFT WINDOWS", "RIGHT WINDOWS", "APPLICATION", "NUMPAD0", "NUMPAD1", "NUMPAD2", "NUMPAD3", "NUMPAD4", "NUMPAD5", "NUMPAD6", "NUMPAD7", "NUMPAD8", "NUMPAD9", "MULTIPLY", "ADD", "SUBTRACT", "DECIMAL", "DIVIDE", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24", "NUM LOCK", "SCROLL LOCK", "LEFT SHIFT", "RIGHT SHIFT", "LEFT CTRL", "RIGHT CTRL", "LEFT ALT", "RIGHT ALT", "VOLUME MUTE", "VOLUME DOWN", "VOLUME UP", "MEDIA NEXT", "MEDIA PREV", "MEDIA STOP", "MEDIA PLAY" });
-        comboBox_ToggleKeyboard.Location = new Point(12, 122);
+        comboBox_ToggleKeyboard.Location = new Point(12, 121);
         comboBox_ToggleKeyboard.Name = "comboBox_ToggleKeyboard";
         comboBox_ToggleKeyboard.Size = new Size(143, 23);
         comboBox_ToggleKeyboard.TabIndex = 6;
@@ -173,6 +174,7 @@ partial class GordoControllerFakeInput
         checkBox_PlaySoundsKeyboard.TabIndex = 7;
         checkBox_PlaySoundsKeyboard.Text = "Play Sounds";
         checkBox_PlaySoundsKeyboard.UseVisualStyleBackColor = true;
+        checkBox_PlaySoundsKeyboard.CheckedChanged += checkBox_PlaySoundsKeyboard_CheckedChanged;
         // 
         // label_IsKeyboardKeyDisabled
         // 
@@ -195,14 +197,14 @@ partial class GordoControllerFakeInput
         groupBox1.Controls.Add(comboBox_ToggleKeyboard);
         groupBox1.Location = new Point(9, 11);
         groupBox1.Name = "groupBox1";
-        groupBox1.Size = new Size(364, 194);
+        groupBox1.Size = new Size(338, 194);
         groupBox1.TabIndex = 12;
         groupBox1.TabStop = false;
         groupBox1.Text = "Keyboard";
         // 
         // button_helpToggleKeyboard
         // 
-        button_helpToggleKeyboard.Location = new Point(282, 122);
+        button_helpToggleKeyboard.Location = new Point(268, 120);
         button_helpToggleKeyboard.Name = "button_helpToggleKeyboard";
         button_helpToggleKeyboard.Size = new Size(25, 23);
         button_helpToggleKeyboard.TabIndex = 11;
@@ -224,7 +226,7 @@ partial class GordoControllerFakeInput
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(698, 218);
+        ClientSize = new Size(669, 218);
         Controls.Add(groupBox2);
         Controls.Add(groupBox1);
         FormBorderStyle = FormBorderStyle.FixedSingle;
